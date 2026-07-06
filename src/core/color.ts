@@ -109,3 +109,24 @@ export function gridColors(
 export function prefersDarkMarker(hex: string): boolean {
   return chroma(hex).luminance() > 0.35;
 }
+
+/** Representative palette color at a fraction of the hue span (UI swatches). */
+export function paletteSwatch(palette: Palette, frac: number): string {
+  const [lMin, lMax] = palette.lightRange;
+  const [cMin, cMax] = palette.chromaRange;
+  const h = (palette.hueBase + (frac - 0.5) * Math.min(palette.hueSpan, 180) + 360) % 360;
+  return chroma.oklch(lMin + (lMax - lMin) * 0.62, (cMin + cMax) / 2, h).hex();
+}
+
+/** Evenly spaced palette colors for CSS gradients on pack cards. */
+export function paletteStops(palette: Palette, n = 5): string[] {
+  const [lMin, lMax] = palette.lightRange;
+  const [cMin, cMax] = palette.chromaRange;
+  const span = Math.min(palette.hueSpan, 200);
+  return Array.from({ length: n }, (_, i) => {
+    const f = n === 1 ? 0.5 : i / (n - 1);
+    const h = (palette.hueBase + (f - 0.5) * span + 360) % 360;
+    const l = lMin + (lMax - lMin) * (0.75 - 0.35 * f);
+    return chroma.oklch(l, (cMin + cMax) / 2, h).hex();
+  });
+}
