@@ -56,10 +56,11 @@ Phase für Phase abgearbeitet; Haken werden beim Abschluss der Phase gesetzt.
       Reload-Persistenz, Resize-Race, Dark Theme, Daily — alles PASS) · Commit „polish“
 
 ## Phase 7 — Deployment
-- [ ] Branch → `main`, `gh repo create color-quiz --public --source . --push`
-- [ ] Pages-Source „GitHub Actions“ per API aktivieren, Workflow-Lauf abwarten
-- [ ] Live-URL abrufen und verifizieren; Repo-Metadaten (Description, Homepage)
-- [ ] Abschlussbericht
+- [x] Branch → `main`; Repo `FullLifeGames/color-quiz` (vom User angelegt), Push via SSH
+- [x] Pages-Source „GitHub Actions“; CI-Lauf grün (Typecheck + 44 Unit + 62 E2E → Deploy)
+- [x] Live verifiziert (Playwright-Smoke gegen die deployte Seite: Board spielbar,
+      LocalStorage schreibt, Manifest/SW/Icons 200); Homepage im Repo gesetzt
+- [x] Abschlussbericht
 
 ## Risiken & Gegenmaßnahmen
 - **Farb-Kollisionen auf großen Brettern** → Best-of-N-Suche + Paletten-Tuning;
