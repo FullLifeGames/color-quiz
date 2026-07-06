@@ -44,6 +44,8 @@ test('an existing streak from yesterday is continued', async ({ page }) => {
 
   await page.goto('/#/daily');
   await solveBoard(page);
+  // completeDaily runs when the win overlay appears — sync on it before reading.
+  await expect(page.locator('[data-testid="win-overlay"]')).toBeVisible();
   const save = await readSave(page);
   expect(save.daily.streak).toBe(5);
 });
