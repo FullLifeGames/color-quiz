@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { generateLevel, minTileDist, packLevel, starsFor } from './level';
 import { minPairDist, toOklab } from './color';
-import { difficulty, LEVELS_PER_PACK, PACKS } from './packs';
+import { difficulty, LEVELS_PER_PACK, levelPalette, PACKS } from './packs';
 import { isSolved, minSwaps } from './permutation';
 
 describe('generateLevel', () => {
@@ -51,6 +51,8 @@ describe('generateLevel', () => {
         expect(isSolved(level.initialPerm)).toBe(false);
         expect(level.par).toBe(minSwaps(level.initialPerm));
         expect(level.par).toBeGreaterThanOrEqual(Math.ceil(movable / 2));
+        expect(level.goal).toBeGreaterThan(level.par);
+        expect(level.goal).toBeLessThanOrEqual(Math.ceil(level.par * 1.85));
 
         // All tiles perceptually distinguishable: hard playability floor
         // everywhere (≈ just-noticeable difference), comfortable margin on
@@ -62,6 +64,18 @@ describe('generateLevel', () => {
       }
     }
   }, 120_000);
+
+  it('varies palettes within a pack (consecutive levels shift hue noticeably)', () => {
+    for (let p = 0; p < PACKS.length; p++) {
+      if (PACKS[p].palette.hueSpan >= 300) continue; // rainbow packs cover the wheel anyway
+      for (let l = 0; l < LEVELS_PER_PACK - 1; l++) {
+        const a = levelPalette(p, l);
+        const b = levelPalette(p, l + 1);
+        const dh = Math.abs(((a.hueBase - b.hueBase + 540) % 360) - 180);
+        expect(dh).toBeGreaterThan(15);
+      }
+    }
+  });
 
   it('grids stay phone-friendly (≤ 9 columns, ≤ 13 rows)', () => {
     for (let p = 0; p < PACKS.length; p += 5) {

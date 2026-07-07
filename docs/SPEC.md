@@ -18,7 +18,11 @@ als eigenständiges Spiel mit eigenem Namen, eigenen Assets und eigenem Code.
 
 ### Wertung
 - `par` = minimale Zuganzahl, um die Start-Permutation zu sortieren
-  (Summe über Zyklen: `len − 1`).
+  (Summe über Zyklen: `len − 1`). Rein intern (Sterne-Berechnung), nie angezeigt.
+- `goal` = geschätzte Züge eines Durchschnittsspielers:
+  `ceil(par × (1.35 + 0.5 × difficulty))`. Wird erst **nach** dem Lösen im
+  Gewinn-Overlay gezeigt („x Züge · Durchschnitt: goal“) — während des Spiels
+  (insbesondere im Zen-Modus) läuft nur der Zug-Zähler.
 - Sterne: **3★** bei `moves ≤ ceil(par × 1.25)`, **2★** bei `moves ≤ ceil(par × 2.2)`,
   sonst **1★**. Beste Wertung pro Level wird gespeichert.
 
@@ -28,6 +32,10 @@ als eigenständiges Spiel mit eigenem Namen, eigenen Assets und eigenem Code.
   (Seed = Paket + Levelindex ⇒ jeder Spieler sieht dieselben Level).
 - Jedes Paket hat einen poetischen Namen (de/en) und eine eigene Farbpalette
   (Oklch: Basis-Farbton, Farbton-Spanne, Chroma- und Helligkeitsbereich).
+- **Paletten-Varianz pro Level**: Innerhalb eines Pakets driftet das Farbton-Fenster
+  (±45°, Regenbogen-Pakete ±15°) und Helligkeit/Chroma verschieben sich pro Level
+  (deterministische Low-Discrepancy-Sequenz ⇒ aufeinanderfolgende Level springen
+  garantiert sichtbar, bleiben aber im Paket-Thema).
 - **Schwierigkeit** steigt global über Pakete und innerhalb eines Pakets:
   größere Bretter (4×5 bis 9×13), weniger Anker, feinere Farbabstufungen.
 - **Freischaltung**: Paket 1 ist offen; Paket *n+1* öffnet sich, sobald in Paket *n*
@@ -77,11 +85,12 @@ Schlüssel `chromaflow.v1`, versioniertes JSON:
 - `#/` **Home**: Titel, „Weiterspielen", Karte „Tägliches Puzzle" (mit 🔥-Streak),
   Zen-Modus, Paket-Grid (Karten mit Palette-Verlauf, Fortschritt, Schloss bei gesperrt),
   Mini-Statistik, Einstellungen (Zahnrad).
-- `#/pack/<i>` **Levelauswahl**: 24 Buttons im Farbband der Palette, Sterne/Häkchen,
-  Fortschrittsanzeige, Hinweis auf Freischaltbedingung.
-- `#/play/<p>/<l>`, `#/daily`, `#/zen/<diff>` **Spiel**: Kopfzeile (zurück, Titel, Züge/Ziel),
+- `#/pack/<i>` **Levelauswahl**: 24 Buttons, jeder in der Paletten-Variante seines
+  Levels eingefärbt, Sterne/Häkchen, Fortschrittsanzeige, Hinweis auf Freischaltbedingung.
+- `#/play/<p>/<l>`, `#/daily`, `#/zen/<diff>` **Spiel**: Kopfzeile (zurück, Titel, Zug-Zähler),
   Brett, Fußzeile (Vorschau-Auge, Tipp mit Token-Zähler, Neustart mit Zwei-Schritt-Bestätigung).
-  Gewinn-Overlay: Sterne, Züge vs. Ziel, poetische Zeile (eigene Texte), Weiter/Nochmal/Zurück.
+  Gewinn-Overlay: Sterne, Züge vs. Durchschnitt (`goal`), poetische Zeile (eigene Texte),
+  Weiter/Nochmal/Zurück.
 - **Einstellungen** (Modal): Ton & Haptik, Design (System/Hell/Dunkel), Sprache (Auto/DE/EN),
   Assist-Modus (Punkt auf korrekt liegenden Kacheln), Fortschritt zurücksetzen (mit Bestätigung).
 - **i18n**: Deutsch (Standard bei deutschem Browser) und Englisch; automatische Erkennung.

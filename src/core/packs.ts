@@ -60,3 +60,36 @@ export function difficulty(packIdx: number, levelIdx: number): number {
   const inPack = levelIdx / (LEVELS_PER_PACK - 1);
   return Math.min(1, 0.62 * acrossPacks + 0.34 * inPack + 0.04);
 }
+
+/**
+ * Per-level palette variant: drifts the hue window and shifts lightness and
+ * chroma so the levels of a pack look clearly different from one another while
+ * staying on the pack's theme. Low-discrepancy (R-sequence) fractions instead
+ * of a seeded rng: consecutive levels are guaranteed to jump, never to land on
+ * near-identical variants back to back.
+ */
+export function levelPalette(packIdx: number, levelIdx: number): Palette {
+  const base = PACKS[packIdx].palette;
+  const n = levelIdx + 1;
+  const fHue = (n * 0.7548776662 + packIdx * 0.37) % 1;
+  const fLight = (n * 0.5698402911 + packIdx * 0.71) % 1;
+  const fChroma = (n * 0.6180339887 + packIdx * 0.13) % 1;
+
+  // Rainbow-style packs already cover the wheel; themed packs wander ±45°.
+  const drift = base.hueSpan >= 300 ? 30 : 90;
+  const hueBase = (base.hueBase + (fHue - 0.5) * drift + 360) % 360;
+  const hueSpan = Math.min(340, base.hueSpan * (0.9 + 0.3 * fChroma));
+
+  const [lMin, lMax] = base.lightRange;
+  const lShift = (fLight - 0.5) * 0.1;
+  const lo = Math.min(Math.max(lMin + lShift, 0.25), 0.97 - (lMax - lMin));
+  const lightRange: [number, number] = [lo, lo + (lMax - lMin)];
+
+  const cScale = 0.9 + 0.25 * fChroma;
+  const chromaRange: [number, number] = [
+    Math.max(0.035, base.chromaRange[0] * cScale),
+    Math.min(0.22, base.chromaRange[1] * cScale)
+  ];
+
+  return { hueBase, hueSpan, chromaRange, lightRange, mode: base.mode };
+}

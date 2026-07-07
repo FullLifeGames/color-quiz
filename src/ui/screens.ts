@@ -1,6 +1,6 @@
 /** Home screen, pack (level select) screen, settings & zen modals. */
 import type { AppContext, Screen } from './app';
-import { LEVELS_PER_PACK, PACKS, UNLOCK_THRESHOLD } from '../core/packs';
+import { LEVELS_PER_PACK, levelPalette, PACKS, UNLOCK_THRESHOLD } from '../core/packs';
 import { paletteStops, paletteSwatch } from '../core/color';
 import { levelKey } from '../core/store';
 import { todayStr } from '../core/daily';
@@ -135,7 +135,7 @@ export function packScreen(ctx: AppContext, packIdx: number): Screen {
   for (let l = 0; l < LEVELS_PER_PACK; l++) {
     const res = store.levelResult(packIdx, l);
     const inProgress = !!store.getInProgress(levelKey(packIdx, l));
-    const bg = paletteSwatch(pack.palette, l / (LEVELS_PER_PACK - 1));
+    const bg = paletteSwatch(levelPalette(packIdx, l), 0.5);
     const btn = h(`
       <button class="level-btn ${res ? 'done' : ''} ${inProgress ? 'progress' : ''}"
         data-testid="level-btn" data-level="${l}" style="--lvl-bg:${bg}"

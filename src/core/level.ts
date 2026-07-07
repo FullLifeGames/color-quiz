@@ -2,7 +2,7 @@
 import { gridColors, makeCorners, minPairDist, toOklab, type Palette } from './color';
 import { rngFromKey, rngInt, rngPick, type Rng } from './rng';
 import { makeShuffle, minSwaps } from './permutation';
-import { difficulty as packDifficulty, PACKS } from './packs';
+import { difficulty as packDifficulty, levelPalette } from './packs';
 
 export interface Level {
   key: string;
@@ -15,6 +15,8 @@ export interface Level {
   initialPerm: number[];
   /** Minimum number of swaps to solve from the initial shuffle. */
   par: number;
+  /** Estimated moves an average player needs (par plus difficulty-scaled slack). */
+  goal: number;
 }
 
 const GRID_SIZES: Array<[maxD: number, cols: number, rows: number]> = [
@@ -130,6 +132,7 @@ export function generateLevel(key: string, d: number, palette: Palette): Level {
   }
 
   const initialPerm = makeShuffle(size, anchors, rng);
+  const par = Math.max(1, minSwaps(initialPerm));
   const level: Level = {
     key,
     cols,
@@ -137,15 +140,17 @@ export function generateLevel(key: string, d: number, palette: Palette): Level {
     colors,
     anchors,
     initialPerm,
-    par: Math.max(1, minSwaps(initialPerm))
+    par,
+    // Optimal play places one tile home per swap; real players lose extra
+    // moves to look-alike tiles, and more so the subtler the board gets.
+    goal: Math.ceil(par * (1.35 + 0.5 * d))
   };
   cache.set(key, level);
   return level;
 }
 
 export function packLevel(packIdx: number, levelIdx: number): Level {
-  const pack = PACKS[packIdx];
-  return generateLevel(`p${packIdx}-l${levelIdx}`, packDifficulty(packIdx, levelIdx), pack.palette);
+  return generateLevel(`p${packIdx}-l${levelIdx}`, packDifficulty(packIdx, levelIdx), levelPalette(packIdx, levelIdx));
 }
 
 /** Star rating: 3 near par, 2 within roughly double, 1 for finishing. */

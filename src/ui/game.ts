@@ -95,7 +95,7 @@ export function gameScreen(ctx: AppContext, mode: GameMode): Screen {
         </div>
         <div class="moves-box" data-testid="moves-box">
           <strong data-testid="moves">${validStored?.moves ?? 0}</strong>
-          <small>${t('game.moves')} · ${t('game.par')} ${level.par}</small>
+          <small>${t('game.moves')}</small>
         </div>
       </header>
       <div class="board-area" data-testid="board-area"></div>
@@ -259,7 +259,7 @@ export function gameScreen(ctx: AppContext, mode: GameMode): Screen {
               .join('')}
           </div>
           <h2 class="win-line">${headline}</h2>
-          <p class="win-moves" data-testid="win-moves">${t('win.moves', { moves, par: level.par })}</p>
+          <p class="win-moves" data-testid="win-moves">${t('win.moves', { moves, goal: level.goal })}</p>
           ${extra}
           <div class="win-buttons">${buttons}</div>
         </div>
