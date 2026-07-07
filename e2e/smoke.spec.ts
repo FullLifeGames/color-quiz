@@ -27,12 +27,20 @@ test('pack screen shows 24 levels and opens a playable board', async ({ page }) 
   await expect(page.locator('[data-testid="level-btn"]')).toHaveCount(24);
   await page.locator('[data-testid="level-btn"]').first().click();
   await boardReady(page);
-  const board = page.locator('.board');
-  const cols = Number(await board.getAttribute('data-cols'));
-  const rows = Number(await board.getAttribute('data-rows'));
-  await expect(page.locator('.tile')).toHaveCount(cols * rows);
-  // Anchors exist and carry the marker class.
+  await expect(page.locator('.board')).toHaveAttribute('data-shape', /square|hex|tri|diamond/);
+  // A playable amount of tiles, and anchors exist with the marker class.
+  expect(await page.locator('.tile').count()).toBeGreaterThanOrEqual(12);
   expect(await page.locator('.tile.anchor').count()).toBeGreaterThanOrEqual(2);
+});
+
+test('consecutive levels use different board shapes', async ({ page }) => {
+  const shapes: string[] = [];
+  for (const level of [0, 1, 2, 3]) {
+    await page.goto(`/#/play/0/${level}`);
+    await boardReady(page);
+    shapes.push((await page.locator('.board').getAttribute('data-shape'))!);
+  }
+  expect(new Set(shapes).size).toBe(4);
 });
 
 test('anchor tiles cannot be selected', async ({ page }) => {

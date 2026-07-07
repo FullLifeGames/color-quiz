@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { generateLevel, minTileDist, packLevel, starsFor } from './level';
 import { minPairDist, toOklab } from './color';
 import { difficulty, LEVELS_PER_PACK, levelPalette, PACKS } from './packs';
+import { SHAPES } from './geometry';
 import { isSolved, minSwaps } from './permutation';
 
 describe('generateLevel', () => {
@@ -13,9 +14,10 @@ describe('generateLevel', () => {
     expect(a.initialPerm).toEqual(b.initialPerm);
   });
 
-  it('level 1 of pack 1 is small and generous with anchors', () => {
+  it('level 1 of pack 1 is small, square and generous with anchors', () => {
     const level = packLevel(0, 0);
-    expect(level.cols * level.rows).toBeLessThanOrEqual(30);
+    expect(level.shape).toBe('square');
+    expect(level.geom.cells.length).toBeLessThanOrEqual(30);
     const movable = level.anchors.filter((a) => !a).length;
     expect(movable).toBeGreaterThanOrEqual(6);
     expect(movable).toBeLessThanOrEqual(12);
@@ -31,7 +33,8 @@ describe('generateLevel', () => {
     for (let p = 0; p < PACKS.length; p++) {
       for (let l = 0; l < LEVELS_PER_PACK; l++) {
         const level = packLevel(p, l);
-        const size = level.cols * level.rows;
+        const size = level.geom.cells.length;
+        expect(level.shape).toBe(SHAPES[(p + l) % SHAPES.length]);
         expect(level.colors).toHaveLength(size);
         expect(level.anchors).toHaveLength(size);
         expect(level.initialPerm).toHaveLength(size);
@@ -77,12 +80,12 @@ describe('generateLevel', () => {
     }
   });
 
-  it('grids stay phone-friendly (≤ 9 columns, ≤ 13 rows)', () => {
+  it('boards stay phone-friendly (tiles ≥ 24 px in a 380×640 board area)', () => {
     for (let p = 0; p < PACKS.length; p += 5) {
-      for (let l = 0; l < LEVELS_PER_PACK; l += 6) {
-        const level = packLevel(p, l);
-        expect(level.cols).toBeLessThanOrEqual(9);
-        expect(level.rows).toBeLessThanOrEqual(13);
+      for (let l = 0; l < LEVELS_PER_PACK; l += 3) {
+        const { geom } = packLevel(p, l);
+        const unit = Math.floor(Math.min(380 / geom.width, 640 / geom.height));
+        expect(unit, `${geom.shape} ${geom.width}×${geom.height}`).toBeGreaterThanOrEqual(24);
       }
     }
   });

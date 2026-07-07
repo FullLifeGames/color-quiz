@@ -82,6 +82,40 @@ function clamp01(x: number): number {
 }
 
 /**
+ * Bilinear interpolation between corners [TL, TR, BL, BR] sampled at each
+ * cell's bounding-box center, normalized over the centers' extent so extreme
+ * cells hit the corner colors exactly. Works for any board geometry. The bbox
+ * center (not the visual centroid) keeps sample rows evenly spaced — triangle
+ * centroids would put stacked cells ⅔ of a row apart and shrink color deltas.
+ */
+export function cellColors(
+  corners: readonly string[],
+  cells: ReadonlyArray<{ x: number; y: number; w: number; h: number }>,
+  mode: 'oklab' | 'oklch' = 'oklab'
+): string[] {
+  const [tl, tr, bl, br] = corners;
+  let minX = Infinity;
+  let maxX = -Infinity;
+  let minY = Infinity;
+  let maxY = -Infinity;
+  for (const c of cells) {
+    minX = Math.min(minX, c.x + c.w / 2);
+    maxX = Math.max(maxX, c.x + c.w / 2);
+    minY = Math.min(minY, c.y + c.h / 2);
+    maxY = Math.max(maxY, c.y + c.h / 2);
+  }
+  const spanX = maxX - minX || 1;
+  const spanY = maxY - minY || 1;
+  return cells.map((c) => {
+    const u = (c.x + c.w / 2 - minX) / spanX;
+    const v = (c.y + c.h / 2 - minY) / spanY;
+    const left = chroma.mix(tl, bl, v, mode);
+    const right = chroma.mix(tr, br, v, mode);
+    return chroma.mix(left, right, u, mode).hex();
+  });
+}
+
+/**
  * Bilinear interpolation between corners [TL, TR, BL, BR] over a cols×rows grid.
  * Returns hex colors in row-major cell order.
  */

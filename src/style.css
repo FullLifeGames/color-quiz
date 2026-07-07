@@ -441,6 +441,15 @@ svg {
   touch-action: none;
 }
 
+/* Shaped boards (hex/tri/diamond) have ragged outlines: no card chrome,
+   the shadow follows the tile shapes instead. */
+.board:not([data-shape='square']) {
+  border-radius: 0;
+  overflow: visible;
+  box-shadow: none;
+  filter: drop-shadow(0 10px 20px rgba(25, 28, 40, 0.22));
+}
+
 .tile {
   position: absolute;
   top: 0;
@@ -469,8 +478,8 @@ svg {
 .tile.anchor::after {
   content: '';
   position: absolute;
-  top: 50%;
-  left: 50%;
+  top: var(--dot-y, 50%);
+  left: var(--dot-x, 50%);
   width: 17%;
   height: 17%;
   max-width: 9px;
@@ -490,7 +499,8 @@ svg {
 .tile.selected {
   z-index: 5;
   border-radius: 6px;
-  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+  /* drop-shadow (not box-shadow) so the halo follows clipped tile shapes */
+  filter: drop-shadow(0 6px 12px rgba(0, 0, 0, 0.4));
   animation: pulse 1s ease-in-out infinite;
 }
 
@@ -508,7 +518,7 @@ svg {
   z-index: 10;
   transition: none;
   border-radius: 8px;
-  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.4);
+  filter: drop-shadow(0 10px 16px rgba(0, 0, 0, 0.45));
 }
 
 .tile.wiggle {
@@ -531,13 +541,14 @@ svg {
 .tile.correct::before {
   content: '';
   position: absolute;
-  top: 6%;
-  right: 6%;
+  top: calc(var(--dot-y, 50%) - 18%);
+  left: var(--dot-x, 50%);
   width: 12%;
   height: 12%;
   max-width: 7px;
   max-height: 7px;
   border-radius: 50%;
+  transform: translate(-50%, -50%);
   background: rgba(255, 255, 255, 0.85);
   box-shadow: 0 0 0 1.5px rgba(20, 22, 30, 0.35);
 }
@@ -548,21 +559,35 @@ svg {
   border-radius: 6px;
 }
 
+/* Target marker: a ring at the cell's marker point — visible on any tile shape. */
 .tile.hint-to {
   z-index: 6;
-  box-shadow: inset 0 0 0 3px rgba(255, 255, 255, 0.95), inset 0 0 0 6px rgba(20, 22, 30, 0.5);
-  border-radius: 6px;
+}
+
+.tile.hint-to::after {
+  content: '';
+  position: absolute;
+  top: var(--dot-y, 50%);
+  left: var(--dot-x, 50%);
+  width: 32%;
+  height: 32%;
+  max-width: 22px;
+  max-height: 22px;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  border: 3px solid rgba(255, 255, 255, 0.95);
+  box-shadow: 0 0 0 2px rgba(20, 22, 30, 0.5), inset 0 0 0 2px rgba(20, 22, 30, 0.5);
 }
 
 @keyframes hintPulse {
   0%,
   100% {
     scale: 1.08;
-    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
+    filter: drop-shadow(0 6px 12px rgba(0, 0, 0, 0.4));
   }
   50% {
     scale: 0.96;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+    filter: drop-shadow(0 2px 5px rgba(0, 0, 0, 0.3));
   }
 }
 
@@ -585,11 +610,16 @@ svg {
 .peek {
   position: absolute;
   inset: 0;
-  display: grid;
   z-index: 20;
   opacity: 0;
   pointer-events: none;
   transition: opacity 0.15s;
+}
+
+.peek div {
+  position: absolute;
+  top: 0;
+  left: 0;
 }
 
 .peek[data-peek='1'] {

@@ -31,12 +31,10 @@ describe('daily', () => {
   it('zen levels are generated for every difficulty tier', () => {
     for (const diff of ZEN_DIFFS) {
       const level = zenLevel(`zen-test-${diff.id}`, diff.id);
-      expect(level.colors.length).toBe(level.cols * level.rows);
+      expect(level.colors.length).toBe(level.geom.cells.length);
       expect(isSolved(level.initialPerm)).toBe(false);
     }
     // Higher tiers use bigger boards.
-    expect(zenLevel('zen-a', 3).cols * zenLevel('zen-a', 3).rows).toBeGreaterThan(
-      zenLevel('zen-b', 0).cols * zenLevel('zen-b', 0).rows
-    );
+    expect(zenLevel('zen-a', 3).geom.cells.length).toBeGreaterThan(zenLevel('zen-b', 0).geom.cells.length);
   });
 });

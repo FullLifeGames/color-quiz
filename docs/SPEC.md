@@ -36,8 +36,13 @@ als eigenständiges Spiel mit eigenem Namen, eigenen Assets und eigenem Code.
   (±45°, Regenbogen-Pakete ±15°) und Helligkeit/Chroma verschieben sich pro Level
   (deterministische Low-Discrepancy-Sequenz ⇒ aufeinanderfolgende Level springen
   garantiert sichtbar, bleiben aber im Paket-Thema).
+- **Brettformen**: 4 Board-Typen — Quadrat-Raster, Hexagon-Waben, Dreiecks-Mosaik,
+  Rauten-Umriss (I-Love-Hue-Too-artig). Pakete rotieren die Form pro Level
+  (`(packIdx + levelIdx) % 4`, Level 1 von Paket 1 bleibt quadratisch), Daily/Zen
+  wählen sie per Seed-Hash. Kachel-Formen via CSS `clip-path`; das Mosaik liegt
+  fest, Kacheln übernehmen die Form der Zelle, auf der sie liegen.
 - **Schwierigkeit** steigt global über Pakete und innerhalb eines Pakets:
-  größere Bretter (4×5 bis 9×13), weniger Anker, feinere Farbabstufungen.
+  größere Bretter (≈20 bis ≈120 Kacheln), weniger Anker, feinere Farbabstufungen.
 - **Freischaltung**: Paket 1 ist offen; Paket *n+1* öffnet sich, sobald in Paket *n*
   mindestens **12 von 24** Leveln gelöst sind.
 - **Tägliches Puzzle**: 1 Level pro Kalendertag (Seed = Datum), Schwierigkeit steigt
@@ -46,7 +51,11 @@ als eigenständiges Spiel mit eigenem Namen, eigenen Assets und eigenem Code.
 
 ### Generator-Qualitätsgarantien (pro Level erzwungen)
 - Alle Kachelfarben paarweise unterscheidbar: minimale Oklab-Distanz über alle Paare
-  ≥ Schwellwert (leicht ≈ 0.05, schwer ≈ 0.022); sonst deterministischer Re-Roll.
+  ≥ Schwellwert (leicht ≈ 0.05, schwer ≈ 0.022); sonst deterministischer Re-Roll,
+  notfalls mit aufgeweiteter Palette (mehr Helligkeitsspanne/Chroma).
+- Formen sind dichte-kompensiert: Farben werden am Bbox-Zentrum gesampelt (nicht am
+  Schwerpunkt), Dreiecks-Bretter sind schmaler, Rauten dünner besetzt (≈60 %), damit
+  benachbarte Farbabstände denen des Quadrat-Rasters entsprechen.
 - ≥ 2 Anker, ≥ 6 bewegliche Kacheln, keine bewegliche Kachel startet auf ihrem Zielfeld.
 - Level-Generierung ist eine reine Funktion (memoisiert), immer erfolgreich (Schwellwert
   wird bei Bedarf schrittweise entspannt).

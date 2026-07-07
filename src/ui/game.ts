@@ -72,7 +72,7 @@ export function gameScreen(ctx: AppContext, mode: GameMode): Screen {
   const { store } = ctx;
   const setup = setupMode(ctx, mode);
   const { level, progressKey } = setup;
-  const size = level.cols * level.rows;
+  const size = level.geom.cells.length;
 
   if (mode.kind === 'pack') store.setLastPlayed(mode.packIdx, mode.levelIdx);
 

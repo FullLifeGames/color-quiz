@@ -1,7 +1,9 @@
 /**
  * Interactive board: absolutely positioned tile buttons moved via transforms,
  * tap-tap and drag-to-swap, intro shuffle animation, peek overlay, hint
- * highlights, assist markers and the win wave.
+ * highlights, assist markers and the win wave. Renders any board geometry
+ * (squares, hexagons, triangles, masked layouts) via per-cell clip-paths:
+ * the mosaic is fixed, tiles adopt the shape of the cell they sit on.
  */
 import type { Level } from '../core/level';
 import { applySwap, isSolved } from '../core/permutation';
@@ -26,18 +28,20 @@ export interface BoardOptions {
 }
 
 const DRAG_THRESHOLD = 8;
+/** Extra px per side on clipped tiles so adjacent shapes overlap hairline seams. */
+const SEAM = 0.75;
 
 export class BoardView {
   readonly el: HTMLElement;
   private peekEl: HTMLElement;
   private tiles: HTMLButtonElement[] = [];
+  private peekCells: HTMLElement[] = [];
   /** perm[cell] = tileId */
   private perm: number[];
   /** cellOf[tileId] = cell */
   private cellOf: number[] = [];
   private moves: number;
-  private tileW = 40;
-  private tileH = 40;
+  private unit = 40;
   private state: 'intro' | 'ready' | 'won' = 'intro';
   /** True only while the intro shows the solved layout; layout() must not
    *  snap tiles back to solved positions once the shuffle has started. */
@@ -66,8 +70,7 @@ export class BoardView {
     this.el = document.createElement('div');
     this.el.className = 'board';
     this.el.dataset.state = 'intro';
-    this.el.dataset.cols = String(level.cols);
-    this.el.dataset.rows = String(level.rows);
+    this.el.dataset.shape = level.shape;
 
     this.peekEl = document.createElement('div');
     this.peekEl.className = 'peek';
@@ -108,7 +111,7 @@ export class BoardView {
 
   private buildTiles(): void {
     const { level } = this;
-    const size = level.cols * level.rows;
+    const size = level.geom.cells.length;
     this.cellOf = new Array(size);
     for (let cell = 0; cell < size; cell++) this.cellOf[this.perm[cell]] = cell;
 
@@ -138,10 +141,11 @@ export class BoardView {
       this.el.appendChild(btn);
     }
 
-    // Peek overlay: solved colors as a simple grid of divs.
+    // Peek overlay: solved colors on the same cell layout.
     for (let cell = 0; cell < size; cell++) {
       const d = document.createElement('div');
       d.style.background = level.colors[cell];
+      this.peekCells.push(d);
       this.peekEl.appendChild(d);
     }
   }
@@ -150,35 +154,41 @@ export class BoardView {
 
   private layout(): void {
     if (this.disposed) return;
-    const { cols, rows } = this.level;
+    const { geom } = this.level;
     const rect = this.container.getBoundingClientRect();
     const availW = rect.width;
     const availH = rect.height;
     if (availW < 10 || availH < 10) return;
-    const tile = Math.max(24, Math.min(Math.floor(availW / cols), Math.floor(availH / rows), 72));
-    this.tileW = tile;
-    this.tileH = tile;
-    this.el.style.width = `${tile * cols}px`;
-    this.el.style.height = `${tile * rows}px`;
-    this.peekEl.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
+    this.unit = Math.max(24, Math.min(72, Math.floor(Math.min(availW / geom.width, availH / geom.height))));
+    this.el.style.width = `${geom.width * this.unit}px`;
+    this.el.style.height = `${geom.height * this.unit}px`;
 
     this.el.classList.add('no-anim');
     for (let tileId = 0; tileId < this.tiles.length; tileId++) {
-      const btn = this.tiles[tileId];
-      btn.style.width = `${this.tileW}px`;
-      btn.style.height = `${this.tileH}px`;
       this.positionTile(tileId, this.revealPhase ? tileId : this.cellOf[tileId]);
+    }
+    for (let cell = 0; cell < this.peekCells.length; cell++) {
+      this.placeOnCell(this.peekCells[cell], cell);
     }
     // Force reflow so re-enabling transitions doesn't animate the layout pass.
     void this.el.offsetWidth;
     this.el.classList.remove('no-anim');
   }
 
+  /** Size, position, clip and marker vars for any element occupying a cell. */
+  private placeOnCell(el: HTMLElement, cell: number): void {
+    const c = this.level.geom.cells[cell];
+    const seam = c.clip ? SEAM : 0;
+    el.style.width = `${c.w * this.unit + 2 * seam}px`;
+    el.style.height = `${c.h * this.unit + 2 * seam}px`;
+    el.style.transform = `translate3d(${c.x * this.unit - seam}px, ${c.y * this.unit - seam}px, 0)`;
+    el.style.clipPath = c.clip ?? '';
+    el.style.setProperty('--dot-x', `${c.dotX}%`);
+    el.style.setProperty('--dot-y', `${c.dotY}%`);
+  }
+
   private positionTile(tileId: number, cell: number): void {
-    const { cols } = this.level;
-    const x = (cell % cols) * this.tileW;
-    const y = Math.floor(cell / cols) * this.tileH;
-    this.tiles[tileId].style.transform = `translate3d(${x}px, ${y}px, 0)`;
+    this.placeOnCell(this.tiles[tileId], cell);
     this.tiles[tileId].dataset.cell = String(cell);
   }
 
@@ -242,10 +252,10 @@ export class BoardView {
       this.tiles[tileId].classList.add('dragging');
       this.clearSelection();
     }
-    const cell = this.cellOf[tileId];
-    const { cols } = this.level;
-    const x = (cell % cols) * this.tileW + dx;
-    const y = Math.floor(cell / cols) * this.tileH + dy;
+    const c = this.level.geom.cells[this.cellOf[tileId]];
+    const seam = c.clip ? SEAM : 0;
+    const x = c.x * this.unit - seam + dx;
+    const y = c.y * this.unit - seam + dy;
     this.tiles[tileId].style.transform = `translate3d(${x}px, ${y}px, 0) scale(1.06)`;
   }
 
@@ -263,19 +273,32 @@ export class BoardView {
     }
     this.tiles[tileId].classList.remove('dragging');
     const rect = this.el.getBoundingClientRect();
-    const col = Math.floor((e.clientX - rect.left) / this.tileW);
-    const row = Math.floor((e.clientY - rect.top) / this.tileH);
+    const target = this.cellAt(e.clientX - rect.left, e.clientY - rect.top);
     const origin = this.cellOf[tileId];
-    const { cols, rows } = this.level;
-    const target = row * cols + col;
-    const validTarget =
-      col >= 0 && col < cols && row >= 0 && row < rows && target !== origin && !this.level.anchors[this.perm[target]];
+    const validTarget = target !== null && target !== origin && !this.level.anchors[this.perm[target]];
     if (validTarget) {
       this.doSwap(origin, target);
     } else {
       this.positionTile(tileId, origin);
       if (target !== origin) this.cb.sfx.denied();
     }
+  }
+
+  /** Nearest cell center to a board-local point, or null when too far away. */
+  private cellAt(px: number, py: number): number | null {
+    const { cells } = this.level.geom;
+    let best = -1;
+    let bestD = Infinity;
+    for (let i = 0; i < cells.length; i++) {
+      const d = Math.hypot(cells[i].cx * this.unit - px, cells[i].cy * this.unit - py);
+      if (d < bestD) {
+        bestD = d;
+        best = i;
+      }
+    }
+    if (best < 0) return null;
+    const c = cells[best];
+    return bestD <= 0.75 * this.unit * Math.max(c.w, c.h) ? best : null;
   }
 
   private cancelPointer(tileId: number): void {
@@ -342,13 +365,14 @@ export class BoardView {
   private finish(): void {
     this.setState('won');
     this.clearSelection();
-    const { cols, rows } = this.level;
-    const cx = (cols - 1) / 2;
-    const cy = (rows - 1) / 2;
+    const { geom } = this.level;
+    const cx = geom.width / 2;
+    const cy = geom.height / 2;
     const delayScale = this.opts.testMode ? 0 : 26;
     for (let cell = 0; cell < this.tiles.length; cell++) {
       const btn = this.tiles[this.perm[cell]];
-      const dist = Math.hypot((cell % cols) - cx, Math.floor(cell / cols) - cy);
+      const c = geom.cells[cell];
+      const dist = Math.hypot(c.cx - cx, c.cy - cy);
       btn.style.animationDelay = `${Math.round(dist * delayScale)}ms`;
       btn.classList.add('pop');
     }

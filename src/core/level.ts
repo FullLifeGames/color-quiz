@@ -1,14 +1,16 @@
 /** Deterministic level generation with perceptual-distance validation. */
-import { gridColors, makeCorners, minPairDist, toOklab, type Palette } from './color';
-import { rngFromKey, rngInt, rngPick, type Rng } from './rng';
+import { cellColors, makeCorners, minPairDist, toOklab, type Palette } from './color';
+import { hashString, rngFromKey, rngInt, rngPick, type Rng } from './rng';
 import { makeShuffle, minSwaps } from './permutation';
 import { difficulty as packDifficulty, levelPalette } from './packs';
+import { makeGeometry, SHAPES, type BoardGeom, type ShapeId } from './geometry';
 
 export interface Level {
   key: string;
-  cols: number;
-  rows: number;
-  /** Solved colors, row-major; colors[tileId] is the tile's own color. */
+  shape: ShapeId;
+  /** Cell layout; the number of cells is `geom.cells.length`. */
+  geom: BoardGeom;
+  /** Solved colors; colors[tileId] is the tile's own color. */
   colors: string[];
   anchors: boolean[];
   /** Initial shuffle: initialPerm[cell] = tileId. */
@@ -38,46 +40,62 @@ function pickGrid(d: number): { cols: number; rows: number } {
   return { cols: 9, rows: 13 };
 }
 
-type AnchorPattern = (cols: number, rows: number, rng: Rng) => boolean[];
+type AnchorPattern = (g: BoardGeom, rng: Rng) => boolean[];
 
-const edge = (cols: number, rows: number, test: (c: number, r: number) => boolean): boolean[] => {
-  const out = new Array(cols * rows).fill(false);
-  for (let r = 0; r < rows; r++) {
-    for (let c = 0; c < cols; c++) out[r * cols + c] = test(c, r);
-  }
-  return out;
-};
-
-const isBorder = (c: number, r: number, cols: number, rows: number) =>
-  c === 0 || r === 0 || c === cols - 1 || r === rows - 1;
-const isCorner = (c: number, r: number, cols: number, rows: number) =>
-  (c === 0 || c === cols - 1) && (r === 0 || r === rows - 1);
-
-/** Patterns from generous (easy) to sparse (hard). */
+/** Patterns from generous (easy) to sparse (hard), on any geometry. */
 const PATTERNS: Record<string, AnchorPattern> = {
-  fullBorder: (cols, rows) => edge(cols, rows, (c, r) => isBorder(c, r, cols, rows)),
-  altBorder: (cols, rows) =>
-    edge(cols, rows, (c, r) => isCorner(c, r, cols, rows) || (isBorder(c, r, cols, rows) && (c + r) % 2 === 0)),
-  sideColumns: (cols, rows) => edge(cols, rows, (c) => c === 0 || c === cols - 1),
-  topBottom: (cols, rows) => edge(cols, rows, (c, r) => r === 0 || r === rows - 1),
-  cornersPlus: (cols, rows) =>
-    edge(
-      cols,
-      rows,
-      (c, r) =>
-        isCorner(c, r, cols, rows) ||
-        (isBorder(c, r, cols, rows) && ((r === 0 || r === rows - 1) ? c === Math.floor(cols / 2) : r === Math.floor(rows / 2)))
-    ),
-  scatter: (cols, rows, rng) => {
-    const out = edge(cols, rows, (c, r) => isCorner(c, r, cols, rows));
-    const extra = rngInt(rng, 3, 5);
-    for (let k = 0; k < extra; k++) {
-      out[rngInt(rng, 0, cols * rows - 1)] = true;
+  fullBorder: (g) => g.cells.map((c) => c.border),
+  altBorder: (g) => g.cells.map((c, i) => c.corner || (c.border && i % 2 === 0)),
+  sideColumns: (g) => axisBorder(g, 'cx'),
+  topBottom: (g) => axisBorder(g, 'cy'),
+  cornersPlus: (g) => {
+    const out = g.cells.map((c) => c.corner);
+    const mids: Array<[number, number]> = [
+      [g.width / 2, 0],
+      [g.width / 2, g.height],
+      [0, g.height / 2],
+      [g.width, g.height / 2]
+    ];
+    for (const [mx, my] of mids) {
+      let best = -1;
+      let bestD = Infinity;
+      g.cells.forEach((c, i) => {
+        if (!c.border) return;
+        const d = (c.cx - mx) ** 2 + (c.cy - my) ** 2;
+        if (d < bestD) {
+          bestD = d;
+          best = i;
+        }
+      });
+      if (best >= 0) out[best] = true;
     }
     return out;
   },
-  cornersOnly: (cols, rows) => edge(cols, rows, (c, r) => isCorner(c, r, cols, rows))
+  scatter: (g, rng) => {
+    const out = g.cells.map((c) => c.corner);
+    const extra = rngInt(rng, 3, 5);
+    for (let k = 0; k < extra; k++) {
+      out[rngInt(rng, 0, g.cells.length - 1)] = true;
+    }
+    return out;
+  },
+  cornersOnly: (g) => g.cells.map((c) => c.corner)
 };
+
+/** Border cells at the extreme ends of one axis (generalized side columns / top+bottom rows). */
+function axisBorder(g: BoardGeom, axis: 'cx' | 'cy'): boolean[] {
+  let min = Infinity;
+  let max = -Infinity;
+  for (const c of g.cells) {
+    min = Math.min(min, c[axis]);
+    max = Math.max(max, c[axis]);
+  }
+  const span = max - min || 1;
+  return g.cells.map((c) => {
+    const f = (c[axis] - min) / span;
+    return c.border && (f < 0.12 || f > 0.88);
+  });
+}
 
 function patternsFor(d: number): AnchorPattern[] {
   if (d < 0.18) return [PATTERNS.fullBorder];
@@ -85,6 +103,39 @@ function patternsFor(d: number): AnchorPattern[] {
   if (d < 0.55) return [PATTERNS.altBorder, PATTERNS.sideColumns, PATTERNS.topBottom, PATTERNS.cornersPlus];
   if (d < 0.78) return [PATTERNS.cornersPlus, PATTERNS.scatter, PATTERNS.sideColumns];
   return [PATTERNS.scatter, PATTERNS.cornersOnly];
+}
+
+/**
+ * Enforce the board invariants on any pattern/geometry combination:
+ * at least 6 movable tiles (freeing non-corner border anchors alternately,
+ * so thinned borders still read as a pattern) and at least 2 anchors.
+ */
+function balanceAnchors(anchors: boolean[], geom: BoardGeom): void {
+  let movable = anchors.filter((a) => !a).length;
+  if (movable < 6) {
+    const freeable = anchors
+      .map((a, i) => (a && !geom.cells[i].corner ? i : -1))
+      .filter((i) => i >= 0);
+    for (const start of [0, 1]) {
+      for (let k = start; k < freeable.length && movable < 6; k += 2) {
+        anchors[freeable[k]] = false;
+        movable++;
+      }
+    }
+  }
+  let count = anchors.length - movable;
+  for (let i = 0; i < anchors.length && count < 2; i++) {
+    if (!anchors[i] && geom.cells[i].corner) {
+      anchors[i] = true;
+      count++;
+    }
+  }
+  for (let i = 0; i < anchors.length && count < 2; i++) {
+    if (!anchors[i]) {
+      anchors[i] = true;
+      count++;
+    }
+  }
 }
 
 /** Required minimum pairwise Oklab distance between any two tiles. */
@@ -98,45 +149,68 @@ const cache = new Map<string, Level>();
  * Generate a level from a seed key. Pure and memoized: the same key always
  * yields the same level. Regenerates deterministically until all tile colors
  * are distinguishable (relaxing the threshold slightly if necessary).
+ * The board shape defaults to a hash of the key (daily/zen variety); pack
+ * levels pass an explicit rotation instead.
  */
-export function generateLevel(key: string, d: number, palette: Palette): Level {
-  const cached = cache.get(key);
+export function generateLevel(key: string, d: number, palette: Palette, shapeOverride?: ShapeId): Level {
+  const shape = shapeOverride ?? SHAPES[hashString(`shape-${key}`) % SHAPES.length];
+  const cacheKey = `${key}|${shape}`;
+  const cached = cache.get(cacheKey);
   if (cached) return cached;
 
   const rng = rngFromKey(key);
   const { cols, rows } = pickGrid(d);
-  const size = cols * rows;
+  const geom = makeGeometry(shape, cols, rows);
+  const size = geom.cells.length;
 
-  let anchors = PATTERNS.fullBorder(cols, rows, rng);
+  let anchors = PATTERNS.fullBorder(geom, rng);
   const candidates = patternsFor(d);
   for (let attempt = 0; attempt < 12; attempt++) {
-    anchors = rngPick(rng, candidates)(cols, rows, rng);
+    anchors = rngPick(rng, candidates)(geom, rng);
     const movable = anchors.filter((a) => !a).length;
     if (movable >= 6 && anchors.filter(Boolean).length >= 2) break;
   }
+  balanceAnchors(anchors, geom);
 
   // Best-of-N corner search: accept the first candidate that meets the
   // difficulty target, otherwise keep the most distinguishable one found.
   const threshold = minTileDist(d);
   let colors: string[] = [];
   let bestDist = -1;
-  for (let attempt = 0; attempt < 40; attempt++) {
-    const corners = makeCorners(rng, palette, d);
-    const candidate = gridColors(corners, cols, rows, palette.mode ?? 'oklab');
-    const dist = minPairDist(candidate.map(toOklab));
-    if (dist > bestDist) {
-      bestDist = dist;
-      colors = candidate;
+  const search = (pal: Palette, attempts: number): void => {
+    for (let attempt = 0; attempt < attempts; attempt++) {
+      const corners = makeCorners(rng, pal, d);
+      const candidate = cellColors(corners, geom.cells, pal.mode ?? 'oklab');
+      const dist = minPairDist(candidate.map(toOklab));
+      if (dist > bestDist) {
+        bestDist = dist;
+        colors = candidate;
+      }
+      if (bestDist >= threshold) return;
     }
-    if (dist >= threshold) break;
+  };
+  search(palette, 60);
+  // Deterministic rescue: when the palette variant physically can't reach the
+  // distinguishability floor on this board, widen it (more lightness spread,
+  // more chroma) and search again.
+  if (bestDist < 0.013) {
+    const [lMin, lMax] = palette.lightRange;
+    search(
+      {
+        ...palette,
+        lightRange: [Math.max(0.2, lMin - 0.08), Math.min(0.98, lMax + 0.08)],
+        chromaRange: [palette.chromaRange[0], Math.min(0.23, palette.chromaRange[1] * 1.15)]
+      },
+      40
+    );
   }
 
   const initialPerm = makeShuffle(size, anchors, rng);
   const par = Math.max(1, minSwaps(initialPerm));
   const level: Level = {
     key,
-    cols,
-    rows,
+    shape,
+    geom,
     colors,
     anchors,
     initialPerm,
@@ -145,12 +219,14 @@ export function generateLevel(key: string, d: number, palette: Palette): Level {
     // moves to look-alike tiles, and more so the subtler the board gets.
     goal: Math.ceil(par * (1.35 + 0.5 * d))
   };
-  cache.set(key, level);
+  cache.set(cacheKey, level);
   return level;
 }
 
 export function packLevel(packIdx: number, levelIdx: number): Level {
-  return generateLevel(`p${packIdx}-l${levelIdx}`, packDifficulty(packIdx, levelIdx), levelPalette(packIdx, levelIdx));
+  // Shapes rotate per level so consecutive levels always change board type.
+  const shape = SHAPES[(packIdx + levelIdx) % SHAPES.length];
+  return generateLevel(`p${packIdx}-l${levelIdx}`, packDifficulty(packIdx, levelIdx), levelPalette(packIdx, levelIdx), shape);
 }
 
 /** Star rating: 3 near par, 2 within roughly double, 1 for finishing. */
